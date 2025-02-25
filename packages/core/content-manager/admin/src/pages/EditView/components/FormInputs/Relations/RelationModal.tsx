@@ -45,7 +45,7 @@ const CustomModalContent = styled(Modal.Content)`
   max-height: 100%;
 `;
 
-const RelationModal = ({ open, onToggle, id, model, relationUrl }: RelationModalProps) => {
+const RelationModal = ({ open, onToggle, id }: RelationModalProps) => {
   const { formatMessage } = useIntl();
 
   return (
@@ -71,13 +71,7 @@ const RelationModal = ({ open, onToggle, id, model, relationUrl }: RelationModal
             </Typography>
           </Flex>
         </Modal.Header>
-        <RelationModalBody
-          id={id}
-          model={model}
-          collectionType={getCollectionType(relationUrl)!}
-          isModalOpen={open}
-          onToggleModal={onToggle}
-        />
+        <RelationModalBody id={id} />
         <Modal.Footer>
           <Button onClick={onToggle} variant="tertiary">
             {formatMessage({ id: 'app.components.Button.cancel', defaultMessage: 'Cancel' })}
@@ -89,11 +83,7 @@ const RelationModal = ({ open, onToggle, id, model, relationUrl }: RelationModal
 };
 
 interface RelationModalBodyProps {
-  model: string;
   id?: string;
-  collectionType: string;
-  isModalOpen: boolean;
-  onToggleModal: () => void;
 }
 
 const RelationModalBody = ({ id }: RelationModalBodyProps) => {
@@ -187,6 +177,7 @@ const RelationModalBody = ({ id }: RelationModalBodyProps) => {
                 id: 'content-manager.components.RelationInputModal.button-fullpage',
                 defaultMessage: 'Open fullpage',
               })}
+              disabled={window.location.pathname.includes(getFullPageLink())}
             >
               <ExternalLink />
             </IconButton>
