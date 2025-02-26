@@ -14,12 +14,14 @@ describeOnCondition(process.env.STRAPI_FEATURES_UNSTABLE_RELATIONS_ON_THE_FLY ==
     test.describe('Edit Modal', () => {
       test('as a user I want to open a relation modal inside a collection', async ({ page }) => {
         await page.getByRole('link', { name: 'Content Manager' }).click();
-        await page.getByRole('link', { name: 'Author' }).click();
-        await page.getByRole('gridcell', { name: 'Ted Lasso' }).click();
+        await page.getByRole('link', { name: 'Article' }).click();
+        await page.getByRole('gridcell', { name: 'West Ham post match analysis' }).click();
 
-        await expect(page.getByRole('heading', { name: 'Ted Lasso' })).toBeVisible();
+        await expect(
+          page.getByRole('heading', { name: 'West Ham post match analysis' })
+        ).toBeVisible();
 
-        await page.getByRole('button', { name: 'Pourquoi je préfère le' }).click();
+        await page.getByRole('button', { name: 'West Ham post match analysis' }).click();
         // it opens the edit relations modal
         await expect(page.getByText('Edit a relation')).toBeVisible();
       });

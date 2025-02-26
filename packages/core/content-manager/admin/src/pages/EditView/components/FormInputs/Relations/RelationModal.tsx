@@ -11,7 +11,7 @@ import {
   Modal,
   Typography,
 } from '@strapi/design-system';
-import { ArrowLeft, WarningCircle, ExternalLink } from '@strapi/icons';
+import { ArrowLeft, WarningCircle, Link as LinkIcon } from '@strapi/icons';
 import { useIntl } from 'react-intl';
 import { Link } from 'react-router-dom';
 import { styled } from 'styled-components';
@@ -71,7 +71,7 @@ const RelationModal = ({ open, onToggle, id }: RelationModalProps) => {
             </Typography>
           </Flex>
         </Modal.Header>
-        <RelationModalBody id={id} />
+        <RelationModalBody id={id} onToggle={onToggle} />
         <Modal.Footer>
           <Button onClick={onToggle} variant="tertiary">
             {formatMessage({ id: 'app.components.Button.cancel', defaultMessage: 'Cancel' })}
@@ -84,9 +84,10 @@ const RelationModal = ({ open, onToggle, id }: RelationModalProps) => {
 
 interface RelationModalBodyProps {
   id?: string;
+  onToggle: () => void;
 }
 
-const RelationModalBody = ({ id }: RelationModalBodyProps) => {
+const RelationModalBody = ({ id, onToggle }: RelationModalBodyProps) => {
   const { formatMessage } = useIntl();
   const documentMeta = useDocumentContext('RelationModalBody', (state) => state.meta);
   const documentResponse = useDocumentContext('RelationModalBody', (state) => state.document);
@@ -151,6 +152,8 @@ const RelationModalBody = ({ id }: RelationModalBodyProps) => {
     return `/content-manager/${documentMeta.collectionType}/${documentMeta.model}${isSingleType ? '' : '/' + documentMeta.documentId}${queryParams}`;
   };
 
+  const modalDocumentSameAsEditViewDocument = window.location.pathname.includes(getFullPageLink());
+
   return (
     <Modal.Body>
       <DocumentRBAC permissions={permissions} model={documentMeta.model}>
@@ -166,21 +169,30 @@ const RelationModalBody = ({ id }: RelationModalBodyProps) => {
             ) : null}
           </Flex>
           <Flex>
-            <IconButton
-              tag={Link}
-              to={getFullPageLink()}
-              onClick={() => {
-                /*TODO: add Tracking*/
-              }}
-              variant="tertiary"
-              label={formatMessage({
-                id: 'content-manager.components.RelationInputModal.button-fullpage',
-                defaultMessage: 'Open fullpage',
-              })}
-              disabled={window.location.pathname.includes(getFullPageLink())}
-            >
-              <ExternalLink />
-            </IconButton>
+            {modalDocumentSameAsEditViewDocument ? (
+              <IconButton
+                onClick={onToggle}
+                variant="tertiary"
+                label={formatMessage({
+                  id: 'content-manager.components.RelationInputModal.button-fullpage',
+                  defaultMessage: 'Go to entry',
+                })}
+              >
+                <LinkIcon />
+              </IconButton>
+            ) : (
+              <IconButton
+                tag={Link}
+                to={getFullPageLink()}
+                variant="tertiary"
+                label={formatMessage({
+                  id: 'content-manager.components.RelationInputModal.button-fullpage',
+                  defaultMessage: 'Go to entry',
+                })}
+              >
+                <LinkIcon />
+              </IconButton>
+            )}
           </Flex>
         </Flex>
         <FormContext initialValues={initialValues} method={id ? 'PUT' : 'POST'}>
