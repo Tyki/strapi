@@ -80,7 +80,11 @@ interface PanelComponent extends DescriptionComponent<PanelComponentProps, Panel
   type?: 'actions' | 'releases';
 }
 
-interface DocumentActionProps extends EditViewContext {}
+interface DocumentActionProps extends EditViewContext {
+  onPreview?: () => void;
+  fromPreview?: boolean;
+  fromRelationModal?: boolean;
+}
 
 interface DocumentActionComponent
   extends DescriptionComponent<DocumentActionProps, DocumentActionDescription> {
@@ -220,10 +224,9 @@ class ContentManagerPlugin {
            * and not mandatory to avoid a breaking change.
            */
           if (position) {
-            return this.documentActions.filter(
-              (action) =>
-                action.position == undefined || [action.position].flat().includes(position)
-            );
+            return this.documentActions.filter((action) => {
+              return action.position == undefined || [action.position].flat().includes(position);
+            });
           }
 
           return this.documentActions;

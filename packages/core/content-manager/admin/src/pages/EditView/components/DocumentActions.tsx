@@ -26,6 +26,7 @@ import { DefaultTheme, styled } from 'styled-components';
 
 import { PUBLISHED_AT_ATTRIBUTE_NAME } from '../../../constants/attributes';
 import { SINGLE_TYPES } from '../../../constants/collections';
+import { useDocumentContext } from '../../../features/DocumentContext';
 import { useDocumentRBAC } from '../../../features/DocumentRBAC';
 import { useDoc } from '../../../hooks/useDocument';
 import { useDocumentActions } from '../../../hooks/useDocumentActions';
@@ -34,13 +35,13 @@ import { useGetDraftRelationCountQuery } from '../../../services/documents';
 import { isBaseQueryError, buildValidParams } from '../../../utils/api';
 import { getTranslation } from '../../../utils/translations';
 
-import type { RelationsFormValue } from './FormInputs/Relations';
+import type { RelationsFormValue } from './FormInputs/Relations/Relations';
 import type { DocumentActionComponent } from '../../../content-manager';
 
 /* -------------------------------------------------------------------------------------------------
  * Types
  * -----------------------------------------------------------------------------------------------*/
-type DocumentActionPosition = 'panel' | 'header' | 'table-row';
+type DocumentActionPosition = 'panel' | 'header' | 'table-row' | 'preview' | 'relation-modal';
 
 interface DocumentActionDescription {
   label: string;
@@ -60,6 +61,7 @@ interface DocumentActionDescription {
    * @default 'secondary'
    */
   variant?: ButtonProps['variant'];
+  loading?: ButtonProps['loading'];
 }
 
 interface DialogOptions {
@@ -193,6 +195,7 @@ const DocumentActionButton = (action: DocumentActionButtonProps) => {
         variant={action.variant || 'default'}
         paddingTop="7px"
         paddingBottom="7px"
+        loading={action.loading}
       >
         {action.label}
       </Button>
@@ -388,6 +391,7 @@ const convertActionVariantToIconColor = (
 interface DocumentActionConfirmDialogProps extends DialogOptions, Pick<Action, 'variant'> {
   onClose: () => void;
   isOpen: Dialog.Props['open'];
+  loading?: ButtonProps['loading'];
 }
 
 const DocumentActionConfirmDialog = ({
@@ -398,6 +402,7 @@ const DocumentActionConfirmDialog = ({
   content,
   isOpen,
   variant = 'secondary',
+  loading,
 }: DocumentActionConfirmDialogProps) => {
   const { formatMessage } = useIntl();
 
@@ -431,7 +436,7 @@ const DocumentActionConfirmDialog = ({
               })}
             </Button>
           </Dialog.Cancel>
-          <Button onClick={handleConfirm} variant={variant} fullWidth>
+          <Button onClick={handleConfirm} variant={variant} fullWidth loading={loading}>
             {formatMessage({
               id: 'app.components.Button.confirm',
               defaultMessage: 'Confirm',
@@ -512,8 +517,11 @@ const PublishAction: DocumentActionComponent = ({
   collectionType,
   meta,
   document,
+  onPreview,
+  fromPreview = false,
+  fromRelationModal = false,
 }) => {
-  const { schema } = useDoc();
+  const schema = useDocumentContext('PublishAction', (state) => state.document.schema);
   const navigate = useNavigate();
   const { toggleNotification } = useNotification();
   const { _unstableFormatValidationErrors: formatValidationErrors } = useAPIErrorHandler();
@@ -522,7 +530,7 @@ const PublishAction: DocumentActionComponent = ({
   const { id } = useParams();
   const { formatMessage } = useIntl();
   const canPublish = useDocumentRBAC('PublishAction', ({ canPublish }) => canPublish);
-  const { publish } = useDocumentActions();
+  const { publish, isLoading } = useDocumentActions(fromPreview, fromRelationModal);
   const [
     countDraftRelations,
     { isLoading: isLoadingDraftRelations, isError: isErrorDraftRelations },
@@ -539,6 +547,9 @@ const PublishAction: DocumentActionComponent = ({
   const validate = useForm('PublishAction', (state) => state.validate);
   const setErrors = useForm('PublishAction', (state) => state.setErrors);
   const formValues = useForm('PublishAction', ({ values }) => values);
+
+  const rootDocumentMeta = useDocumentContext('PublishAction', (state) => state.rootDocumentMeta);
+  const currentDocumentMeta = useDocumentContext('PublishAction', (state) => state.meta);
 
   React.useEffect(() => {
     if (isErrorDraftRelations) {
@@ -645,12 +656,13 @@ const PublishAction: DocumentActionComponent = ({
         return;
       }
 
+      const isPublishingRelation = rootDocumentMeta.documentId !== currentDocumentMeta.documentId;
       const res = await publish(
         {
           collectionType,
           model,
           documentId,
-          params,
+          params: isPublishingRelation ? currentDocumentMeta.params : params,
         },
         transformData(formValues)
       );
@@ -674,6 +686,10 @@ const PublishAction: DocumentActionComponent = ({
       }
     } finally {
       setSubmitting(false);
+
+      if (onPreview) {
+        onPreview();
+      }
     }
   };
 
@@ -684,6 +700,8 @@ const PublishAction: DocumentActionComponent = ({
   const hasDraftRelations = enableDraftRelationsCount && totalDraftRelations > 0;
 
   return {
+    loading: isLoading,
+    position: ['panel', 'preview', 'relation-modal'],
     /**
      * Disabled when:
      *  - currently if you're cloning a document we don't support publish & clone at the same time.
@@ -742,13 +760,16 @@ const PublishAction: DocumentActionComponent = ({
 };
 
 PublishAction.type = 'publish';
-PublishAction.position = 'panel';
+PublishAction.position = ['panel', 'preview', 'relation-modal'];
 
 const UpdateAction: DocumentActionComponent = ({
   activeTab,
   documentId,
   model,
   collectionType,
+  onPreview,
+  fromPreview = false,
+  fromRelationModal = false,
 }) => {
   const navigate = useNavigate();
   const { toggleNotification } = useNotification();
@@ -756,7 +777,7 @@ const UpdateAction: DocumentActionComponent = ({
   const cloneMatch = useMatch(CLONE_PATH);
   const isCloning = cloneMatch !== null;
   const { formatMessage } = useIntl();
-  const { create, update, clone } = useDocumentActions();
+  const { create, update, clone, isLoading } = useDocumentActions(fromPreview, fromRelationModal);
   const [{ query, rawQuery }] = useQueryParams();
   const params = React.useMemo(() => buildValidParams(query), [query]);
 
@@ -767,6 +788,9 @@ const UpdateAction: DocumentActionComponent = ({
   const validate = useForm('UpdateAction', (state) => state.validate);
   const setErrors = useForm('UpdateAction', (state) => state.setErrors);
   const resetForm = useForm('PublishAction', ({ resetForm }) => resetForm);
+
+  const rootDocumentMeta = useDocumentContext('UpdateAction', (state) => state.rootDocumentMeta);
+  const currentDocumentMeta = useDocumentContext('UpdateAction', (state) => state.meta);
 
   const handleUpdate = React.useCallback(async () => {
     setSubmitting(true);
@@ -819,12 +843,14 @@ const UpdateAction: DocumentActionComponent = ({
           setErrors(formatValidationErrors(res.error));
         }
       } else if (documentId || collectionType === SINGLE_TYPES) {
+        const isEditingRelation = rootDocumentMeta.documentId !== currentDocumentMeta.documentId;
+
         const res = await update(
           {
             collectionType,
             model,
             documentId,
-            params,
+            params: isEditingRelation ? currentDocumentMeta.params : params,
           },
           transformData(document)
         );
@@ -861,12 +887,17 @@ const UpdateAction: DocumentActionComponent = ({
       }
     } finally {
       setSubmitting(false);
+      if (onPreview) {
+        onPreview();
+      }
     }
   }, [
     clone,
     cloneMatch?.params.origin,
     collectionType,
     create,
+    currentDocumentMeta.documentId,
+    currentDocumentMeta.params,
     document,
     documentId,
     formatMessage,
@@ -875,9 +906,11 @@ const UpdateAction: DocumentActionComponent = ({
     model,
     modified,
     navigate,
+    onPreview,
     params,
     rawQuery,
     resetForm,
+    rootDocumentMeta.documentId,
     setErrors,
     setSubmitting,
     toggleNotification,
@@ -902,6 +935,7 @@ const UpdateAction: DocumentActionComponent = ({
   }, [handleUpdate]);
 
   return {
+    loading: isLoading,
     /**
      * Disabled when:
      * - the form is submitting
@@ -914,11 +948,12 @@ const UpdateAction: DocumentActionComponent = ({
       defaultMessage: 'Save',
     }),
     onClick: handleUpdate,
+    position: ['panel', 'preview', 'relation-modal'],
   };
 };
 
 UpdateAction.type = 'update';
-UpdateAction.position = 'panel';
+UpdateAction.position = ['panel', 'preview', 'relation-modal'];
 
 const UNPUBLISH_DRAFT_OPTIONS = {
   KEEP: 'keep',
@@ -1081,7 +1116,7 @@ const DiscardAction: DocumentActionComponent = ({
   const { formatMessage } = useIntl();
   const { schema } = useDoc();
   const canUpdate = useDocumentRBAC('DiscardAction', ({ canUpdate }) => canUpdate);
-  const { discard } = useDocumentActions();
+  const { discard, isLoading } = useDocumentActions();
   const [{ query }] = useQueryParams();
   const params = React.useMemo(() => buildValidParams(query), [query]);
 
@@ -1115,6 +1150,7 @@ const DiscardAction: DocumentActionComponent = ({
           </Typography>
         </Flex>
       ),
+      loading: isLoading,
       onConfirm: async () => {
         await discard({
           collectionType,
